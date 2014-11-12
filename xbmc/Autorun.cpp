@@ -41,6 +41,7 @@
 #include "dialogs/GUIDialogYesNo.h"
 #include "utils/URIUtils.h"
 #include "utils/log.h"
+#include "video/windows/GUIWindowVideoBase.h"
 #ifdef HAS_CDDA_RIPPER
 #include "cdrip/CDDARipper.h"
 #endif
@@ -207,6 +208,8 @@ bool CAutorun::RunDisc(IDirectory* pDir, const CStdString& strDrive, int& nAdded
 
           g_playlistPlayer.ClearPlaylist(PLAYLIST_VIDEO);
           g_playlistPlayer.SetShuffle (PLAYLIST_VIDEO, false);
+          if (!CGUIWindowVideoBase::ShowPlaySelection(item))
+            return false;
           g_playlistPlayer.Add(PLAYLIST_VIDEO, item);
           g_playlistPlayer.SetCurrentPlaylist(PLAYLIST_VIDEO);
           g_playlistPlayer.Play(0);
@@ -348,7 +351,7 @@ bool CAutorun::RunDisc(IDirectory* pDir, const CStdString& strDrive, int& nAdded
               && (bypassSettings))
         {
           bPlaying = true;
-          CStdString strExec = StringUtils::Format("XBMC.RecursiveSlideShow(%s)", pItem->GetPath().c_str());
+          CStdString strExec = StringUtils::Format("RecursiveSlideShow(%s)", pItem->GetPath().c_str());
           CBuiltins::Execute(strExec);
           return true;
         }
@@ -425,7 +428,7 @@ bool CAutorun::RunDisc(IDirectory* pDir, const CStdString& strDrive, int& nAdded
       if (!pItem->m_bIsFolder && pItem->IsPicture())
       {
         bPlaying = true;
-        CStdString strExec = StringUtils::Format("XBMC.RecursiveSlideShow(%s)", strDrive.c_str());
+        CStdString strExec = StringUtils::Format("RecursiveSlideShow(%s)", strDrive.c_str());
         CBuiltins::Execute(strExec);
         break;
       }

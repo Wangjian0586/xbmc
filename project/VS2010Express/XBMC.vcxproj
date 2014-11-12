@@ -69,7 +69,7 @@
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Debug Testsuite|Win32'">$(DXSDK_DIR)Lib\x86;$(LibraryPath)</LibraryPath>
     <IncludePath Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(DXSDK_DIR)Lib\x86;$(LibraryPath)</LibraryPath>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug Testsuite|Win32'">xbmc-test</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug Testsuite|Win32'">$(ProjectName)-test</TargetName>
     <CustomBuildBeforeTargets Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     </CustomBuildBeforeTargets>
   </PropertyGroup>
@@ -156,7 +156,7 @@
       <AdditionalDependencies>D3dx9.lib;DInput8.lib;DSound.lib;winmm.lib;Mpr.lib;Iphlpapi.lib;PowrProf.lib;setupapi.lib;dwmapi.lib;yajl.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).exe</OutputFile>
       <IgnoreSpecificDefaultLibraries>libc;msvcrt;libci;msvcprt;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <DelayLoadDLLs>libxslt.dll;dnssd.dll;dwmapi.dll;libmicrohttpd-5.dll;ssh.dll;sqlite3.dll;avcodec-55.dll;avfilter-4.dll;avformat-55.dll;avutil-52.dll;postproc-52.dll;swresample-0.dll;swscale-2.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <DelayLoadDLLs>libxslt.dll;dnssd.dll;dwmapi.dll;libmicrohttpd-5.dll;ssh.dll;sqlite3.dll;avcodec-56.dll;avfilter-5.dll;avformat-56.dll;avutil-54.dll;postproc-53.dll;swresample-1.dll;swscale-3.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)$(ProjectName).pdb</ProgramDatabaseFile>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
@@ -196,17 +196,17 @@
     <ClCompile Include="..\..\xbmc\BackgroundInfoLoader.cpp" />
     <ClCompile Include="..\..\xbmc\CompileInfo.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\AEFactory.cpp" />
+    <ClCompile Include="..\..\xbmc\cores\AudioEngine\AEResampleFactory.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\AESinkFactory.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Encoders\AEEncoderFFmpeg.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAE.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEBuffer.cpp" />
-    <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEResample.cpp" />
+    <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEResampleFFMPEG.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAESink.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAESound.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEStream.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkDirectSound.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkNULL.cpp" />
-    <ClCompile Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkProfiler.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkWASAPI.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Utils\AEBitstreamPacker.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Utils\AEBuffer.cpp" />
@@ -216,6 +216,7 @@
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Utils\AEPackIEC61937.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Utils\AEStreamInfo.cpp" />
     <ClCompile Include="..\..\xbmc\cores\AudioEngine\Utils\AEUtil.cpp" />
+    <ClCompile Include="..\..\xbmc\cores\DataCacheCore.cpp" />
     <ClCompile Include="..\..\xbmc\cores\dvdplayer\DVDCodecs\Audio\DVDAudioCodecPassthrough.cpp" />
     <ClCompile Include="..\..\xbmc\cores\dvdplayer\DVDCodecs\Video\DVDVideoCodec.cpp" />
     <ClCompile Include="..\..\xbmc\cores\dvdplayer\DVDDemuxers\DVDDemuxBXA.cpp" />
@@ -278,6 +279,7 @@
     <ClCompile Include="..\..\xbmc\filesystem\AFPFile.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\ASAPFileDirectory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\BlurayDirectory.cpp" />
+    <ClCompile Include="..\..\xbmc\filesystem\BlurayFile.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\CacheStrategy.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\CDDADirectory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\CDDAFile.cpp" />
@@ -389,8 +391,7 @@
     <ClCompile Include="..\..\xbmc\filesystem\win32\Win32Directory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\win32\Win32SMBDirectory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\win32\Win32File.cpp" />
-    <ClCompile Include="..\..\xbmc\filesystem\windows\WINFileSMB.cpp" />
-    <ClCompile Include="..\..\xbmc\filesystem\windows\WINSMBDirectory.cpp" />
+    <ClCompile Include="..\..\xbmc\filesystem\win32\Win32SMBFile.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\VirtualDirectory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\VTPDirectory.cpp" />
     <ClCompile Include="..\..\xbmc\filesystem\VTPFile.cpp" />
@@ -805,6 +806,7 @@
     <ClInclude Include="..\..\xbmc\ApplicationPlayer.h" />
     <ClInclude Include="..\..\xbmc\AppParamParser.h" />
     <ClInclude Include="..\..\xbmc\CompileInfo.h" />
+    <ClInclude Include="..\..\xbmc\cores\DataCacheCore.h" />
     <CustomBuild Include="..\..\xbmc\GitRevision.h">
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CALL update_git_rev.bat</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..\xbmc\win32\git_rev.h</Outputs>
@@ -813,15 +815,17 @@
     </CustomBuild>
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\AEAudioFormat.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\AEFactory.h" />
+    <ClInclude Include="..\..\xbmc\cores\AudioEngine\AEResampleFactory.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\AESinkFactory.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Encoders\AEEncoderFFmpeg.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAE.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEBuffer.h" />
-    <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEResample.h" />
+    <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEResampleFFMPEG.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAESink.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAESound.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Engines\ActiveAE\ActiveAEStream.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\AE.h" />
+    <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\AEResample.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\AEEncoder.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\AESink.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\AESound.h" />
@@ -829,7 +833,6 @@
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Interfaces\ThreadedAE.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkDirectSound.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkNULL.h" />
-    <ClInclude Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkProfiler.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Sinks\AESinkWASAPI.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Utils\AEBitstreamPacker.h" />
     <ClInclude Include="..\..\xbmc\cores\AudioEngine\Utils\AEBuffer.h" />
@@ -849,6 +852,7 @@
     <ClInclude Include="..\..\xbmc\DbUrl.h" />
     <ClInclude Include="..\..\xbmc\dialogs\GUIDialogMediaFilter.h" />
     <ClInclude Include="..\..\xbmc\FileItemListModification.h" />
+    <ClInclude Include="..\..\xbmc\filesystem\BlurayFile.h" />
     <ClInclude Include="..\..\xbmc\filesystem\HTTPFile.h" />
     <ClInclude Include="..\..\xbmc\filesystem\DAVCommon.h" />
     <ClInclude Include="..\..\xbmc\filesystem\DAVFile.h" />
@@ -858,8 +862,7 @@
     <ClInclude Include="..\..\xbmc\filesystem\win32\Win32Directory.h" />
     <ClInclude Include="..\..\xbmc\filesystem\win32\Win32SMBDirectory.h" />
     <ClInclude Include="..\..\xbmc\filesystem\win32\Win32File.h" />
-    <ClInclude Include="..\..\xbmc\filesystem\windows\WINFileSMB.h" />
-    <ClInclude Include="..\..\xbmc\filesystem\windows\WINSMBDirectory.h" />
+    <ClInclude Include="..\..\xbmc\filesystem\win32\Win32SMBFile.h" />
     <ClInclude Include="..\..\xbmc\guilib\cximage.h" />
     <ClInclude Include="..\..\xbmc\guilib\GUIKeyboard.h" />
     <ClInclude Include="..\..\xbmc\guilib\GUIKeyboardFactory.h" />
@@ -941,6 +944,7 @@
     <ClInclude Include="..\..\xbmc\settings\dialogs\GUIDialogSettingsBase.h" />
     <ClInclude Include="..\..\xbmc\settings\dialogs\GUIDialogSettingsManagerBase.h" />
     <ClInclude Include="..\..\xbmc\settings\dialogs\GUIDialogSettingsManualBase.h" />
+    <ClInclude Include="..\..\xbmc\settings\DiscSettings.h" />
     <ClInclude Include="..\..\xbmc\settings\DisplaySettings.h" />
     <ClInclude Include="..\..\xbmc\settings\lib\ISetting.h" />
     <ClInclude Include="..\..\xbmc\settings\lib\ISettingCallback.h" />
@@ -1135,6 +1139,7 @@
     <ClCompile Include="..\..\xbmc\utils\win32\Win32Log.cpp" />
     <ClCompile Include="..\..\xbmc\utils\XSLTUtils.cpp" />
     <ClCompile Include="..\..\xbmc\video\PlayerController.cpp" />
+    <ClCompile Include="..\..\xbmc\video\videosync\VideoSyncD3D.cpp" />
     <ClCompile Include="..\..\xbmc\video\VideoThumbLoader.cpp" />
     <ClCompile Include="..\..\xbmc\music\MusicThumbLoader.cpp" />
     <ClCompile Include="..\..\xbmc\ThumbnailCache.cpp" />
@@ -2021,6 +2026,8 @@
     <ClInclude Include="..\..\xbmc\DatabaseManager.h" />
     <ClInclude Include="..\..\xbmc\ThumbLoader.h" />
     <ClInclude Include="..\..\xbmc\video\PlayerController.h" />
+    <ClInclude Include="..\..\xbmc\video\videosync\VideoSync.h" />
+    <ClInclude Include="..\..\xbmc\video\videosync\VideoSyncD3D.h" />
     <ClInclude Include="..\..\xbmc\video\VideoThumbLoader.h" />
     <ClInclude Include="..\..\xbmc\music\MusicThumbLoader.h" />
     <ClInclude Include="..\..\xbmc\ThumbnailCache.h" />

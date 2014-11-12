@@ -62,6 +62,21 @@ CGUIWindowPVRBase::~CGUIWindowPVRBase(void)
 {
 }
 
+void CGUIWindowPVRBase::SetSelectedItemPath(bool bRadio, const std::string path)
+{
+  m_selectedItemPaths.at(bRadio) = path;
+}
+
+std::string CGUIWindowPVRBase::GetSelectedItemPath(bool bRadio)
+{
+  if (!m_selectedItemPaths.at(bRadio).empty())
+    return m_selectedItemPaths.at(bRadio);
+  else if (g_PVRManager.IsPlaying())
+    return g_application.CurrentFile();
+
+  return "";
+}
+
 void CGUIWindowPVRBase::Notify(const Observable &obs, const ObservableMessage msg)
 {
   UpdateSelectedItemPath();
@@ -109,15 +124,10 @@ void CGUIWindowPVRBase::OnInitWindow(void)
 
   m_vecItems->SetPath(GetDirectoryPath());
 
-  // use the path of the current playing channel if no previous selection exists
-  // to mark the corresponding item in the list as selected
-  if (m_selectedItemPaths.at(m_bRadio).empty() && g_PVRManager.IsPlaying())
-    m_selectedItemPaths.at(m_bRadio) = g_application.CurrentFile();
-
   CGUIMediaWindow::OnInitWindow();
 
   // mark item as selected by channel path
-  m_viewControl.SetSelectedItem(m_selectedItemPaths.at(m_bRadio));
+  m_viewControl.SetSelectedItem(GetSelectedItemPath(m_bRadio));
 }
 
 void CGUIWindowPVRBase::OnDeinitWindow(int nextWindowID)
@@ -600,9 +610,7 @@ bool CGUIWindowPVRBase::ActionDeleteRecording(CFileItem *item)
 {
   bool bReturn = false;
 
-  /* check if the recording tag is valid */
-  CPVRRecording *recTag = (CPVRRecording *) item->GetPVRRecordingInfoTag();
-  if (!recTag || recTag->m_strRecordingId.empty())
+  if (!item->IsPVRRecording() && !item->m_bIsFolder)
     return bReturn;
 
   /* show a confirmation dialog */
@@ -700,16 +708,10 @@ bool CGUIWindowPVRBase::Update(const std::string &strDirectory, bool updateFilte
 void CGUIWindowPVRBase::UpdateButtons(void)
 {
   CGUIMediaWindow::UpdateButtons();
-  SET_CONTROL_LABEL(CONTROL_BTNCHANNELGROUPS, g_localizeStrings.Get(19141) + ": " + (m_group->GroupType() == PVR_GROUP_TYPE_INTERNAL ? g_localizeStrings.Get(19287) : m_group->GroupName()));
+  SET_CONTROL_LABEL(CONTROL_BTNCHANNELGROUPS, g_localizeStrings.Get(19141) + ": " + m_group->GroupName());
 }
 
 void CGUIWindowPVRBase::UpdateSelectedItemPath()
 {
-  int selectedItem = m_viewControl.GetSelectedItem();
-  if (selectedItem > -1)
-  {
-    CFileItemPtr fileItem = m_vecItems->Get(selectedItem);
-    if (fileItem)
-      m_selectedItemPaths.at(m_bRadio) = fileItem->GetPath();
-  }
+  m_selectedItemPaths.at(m_bRadio) = m_viewControl.GetSelectedItemPath();
 }

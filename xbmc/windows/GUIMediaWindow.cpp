@@ -364,7 +364,7 @@ bool CGUIMediaWindow::OnMessage(CGUIMessage& message)
              m_vecItems->IsSourcesPath()) && IsActive())
         {
           int iItem = m_viewControl.GetSelectedItem();
-          Refresh();
+          Refresh(true);
           m_viewControl.SetSelectedItem(iItem);
         }
         return true;
@@ -1218,7 +1218,7 @@ void CGUIMediaWindow::GetDirectoryHistoryString(const CFileItem* pItem, std::str
   {
     // Could be a cue item, all items of a cue share the same filename
     // so add the offsets to build the history string
-    strHistoryString = StringUtils::Format("%ld%ld",
+    strHistoryString = StringUtils::Format("%i%i",
                                            pItem->m_lStartOffset,
                                            pItem->m_lEndOffset);
     strHistoryString += pItem->GetPath();
@@ -1926,6 +1926,12 @@ bool CGUIMediaWindow::IsFiltered()
 {
   return (!m_canFilterAdvanced && !GetProperty("filter").empty()) ||
          (m_canFilterAdvanced && !m_filter.IsEmpty());
+}
+
+bool CGUIMediaWindow::IsSameStartFolder(const std::string &dir)
+{
+  const std::string startFolder = GetStartFolder(dir);
+  return StringUtils::StartsWith(m_vecItems->GetPath(), startFolder);
 }
 
 bool CGUIMediaWindow::Filter(bool advanced /* = true */)

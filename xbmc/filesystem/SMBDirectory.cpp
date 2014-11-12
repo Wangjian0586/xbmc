@@ -45,9 +45,9 @@
 #include <libsmbclient.h>
 
 #if defined(TARGET_DARWIN)
-#define XBMC_SMB_MOUNT_PATH "Library/Application Support/XBMC/Mounts/"
+#define XBMC_SMB_MOUNT_PATH "Library/Application Support/Kodi/Mounts/"
 #else
-#define XBMC_SMB_MOUNT_PATH "/media/xbmc/smb/"
+#define XBMC_SMB_MOUNT_PATH "/media/kodi/smb/"
 #endif
 
 struct CachedDirEntry
@@ -158,7 +158,7 @@ bool CSMBDirectory::GetDirectory(const CURL& url, CFileItemList &items)
             else
               CLog::Log(LOGERROR, "Getting extended attributes for the share: '%s'\nunix_err:'%x' error: '%s'", CURL::GetRedacted(strFullName).c_str(), errno, strerror(errno));
 
-            bIsDir = (info.st_mode & S_IFDIR) ? true : false;
+            bIsDir = S_ISDIR(info.st_mode);
             lTimeDate = info.st_mtime;
             if(lTimeDate == 0) // if modification date is missing, use create date
               lTimeDate = info.st_ctime;
@@ -248,7 +248,9 @@ int CSMBDirectory::OpenDir(const CURL& url, std::string& strAuth)
     s.erase(len - 1, 1);
   }
 
-  CLog::Log(LOGDEBUG, "%s - Using authentication url %s", __FUNCTION__, CURL::GetRedacted(s).c_str());
+  if (g_advancedSettings.CanLogComponent(LOGSAMBA))
+    CLog::LogFunction(LOGDEBUG, __FUNCTION__, "Using authentication url %s", CURL::GetRedacted(s).c_str());
+
   { CSingleLock lock(smb);
     fd = smbc_opendir(s.c_str());
   }
@@ -334,7 +336,7 @@ bool CSMBDirectory::Exists(const CURL& url2)
   if (smbc_stat(strFileName.c_str(), &info) != 0)
     return false;
 
-  return (info.st_mode & S_IFDIR) ? true : false;
+  return S_ISDIR(info.st_mode);
 }
 
 std::string CSMBDirectory::MountShare(const std::string &smbPath, const std::string &strType, const std::string &strName,

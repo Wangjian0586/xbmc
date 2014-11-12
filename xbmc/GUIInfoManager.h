@@ -488,6 +488,7 @@ namespace INFO
 #define PVR_ACTUAL_STREAM_SERVICE   (PVR_STRINGS_START + 34)
 #define PVR_ACTUAL_STREAM_MUX       (PVR_STRINGS_START + 35)
 #define PVR_ACTUAL_STREAM_PROVIDER  (PVR_STRINGS_START + 36)
+#define PVR_BACKEND_DISKSPACE_PROGR (PVR_STRINGS_START + 37)
 #define PVR_STRINGS_END             PVR_ACTUAL_STREAM_PROVIDER
 
 #define WINDOW_PROPERTY             9993
@@ -847,8 +848,6 @@ public:
 
   /// \brief iterates through boolean conditions and compares their stored values to current values. Returns true if any condition changed value.
   bool ConditionsChangedValues(const std::map<INFO::InfoPtr, bool>& map);
-
-  bool m_AVInfoValid;
 
 protected:
   friend class INFO::InfoSingle;

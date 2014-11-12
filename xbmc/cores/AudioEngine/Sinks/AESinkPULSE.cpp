@@ -183,7 +183,7 @@ static void SinkInputInfoCallback(pa_context *c, const pa_sink_input_info *i, in
     return;
 
   if(i && i->has_volume)
-    p->UpdateInternalVolume(i->volume);
+    p->UpdateInternalVolume(&(i->volume));
 }
 
 static void SinkInputInfoChangedCallback(pa_context *c, pa_subscription_event_type_t t, uint32_t idx, void *userdata)
@@ -249,6 +249,9 @@ struct SinkInfoStruct
 static void SinkInfoCallback(pa_context *c, const pa_sink_info *i, int eol, void *userdata)
 {
   SinkInfoStruct *sinkStruct = (SinkInfoStruct *)userdata;
+  if (!sinkStruct)
+    return;
+
   if(i)
   {
     if (i->flags && (i->flags & PA_SINK_HARDWARE))
@@ -333,7 +336,7 @@ static pa_channel_map AEChannelMapToPAChannel(CAEChannelInfo info)
   return map;
 }
 
-static CAEChannelInfo PAChannelToAEChannelMap(pa_channel_map channels)
+static CAEChannelInfo PAChannelToAEChannelMap(const pa_channel_map& channels)
 {
   CAEChannelInfo info;
   AEChannel ch;
@@ -351,8 +354,10 @@ static void SinkInfoRequestCallback(pa_context *c, const pa_sink_info *i, int eo
 {
 
   SinkInfoStruct *sinkStruct = (SinkInfoStruct *)userdata;
+  if (!sinkStruct)
+    return;
 
-  if(sinkStruct && sinkStruct->list->empty())
+  if(sinkStruct->list->empty())
   {
     //add a default device first
     CAEDeviceInfo defaultDevice;
@@ -365,11 +370,10 @@ static void SinkInfoRequestCallback(pa_context *c, const pa_sink_info *i, int eo
     defaultDevice.m_deviceType = AE_DEVTYPE_PCM;
     sinkStruct->list->push_back(defaultDevice);
   }
-  bool valid = true;
   if (i && i->name)
   {
     CAEDeviceInfo device;
-
+    bool valid = true;
     device.m_deviceName = string(i->name);
     device.m_displayName = string(i->description);
     if (i->active_port && i->active_port->description)
@@ -423,7 +427,7 @@ static void SinkInfoRequestCallback(pa_context *c, const pa_sink_info *i, int eo
     {
       CLog::Log(LOGDEBUG, "PulseAudio: Skipped %s with devicestring %s", device.m_displayName.c_str(), device.m_deviceName.c_str());
     }
- }
+  }
   pa_threaded_mainloop_signal(sinkStruct->mainloop, 0);
 }
 
@@ -442,6 +446,7 @@ CAESinkPULSE::CAESinkPULSE()
   m_Context = NULL;
   m_IsStreamPaused = false;
   m_volume_needs_update = false;
+  pa_cvolume_init(&m_Volume);
 }
 
 CAESinkPULSE::~CAESinkPULSE()
@@ -795,10 +800,13 @@ pa_stream* CAESinkPULSE::GetInternalStream()
   return m_Stream;
 }
 
-void CAESinkPULSE::UpdateInternalVolume(pa_cvolume nVol)
+void CAESinkPULSE::UpdateInternalVolume(const pa_cvolume* nVol)
 {
+  if (!nVol)
+    return;
+
   pa_volume_t o_vol = pa_cvolume_avg(&m_Volume);
-  pa_volume_t n_vol = pa_cvolume_avg(&nVol);
+  pa_volume_t n_vol = pa_cvolume_avg(nVol);
 
   if (o_vol != n_vol)
   {

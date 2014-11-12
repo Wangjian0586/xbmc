@@ -118,14 +118,14 @@ const BUILT_IN commands[] = {
   { "Restart",                    false,  "Restart the system (same as reboot)" },
   { "ShutDown",                   false,  "Shutdown the system" },
   { "Powerdown",                  false,  "Powerdown system" },
-  { "Quit",                       false,  "Quit XBMC" },
+  { "Quit",                       false,  "Quit Kodi" },
   { "Hibernate",                  false,  "Hibernates the system" },
   { "Suspend",                    false,  "Suspends the system" },
   { "InhibitIdleShutdown",        false,  "Inhibit idle shutdown" },
   { "AllowIdleShutdown",          false,  "Allow idle shutdown" },
   { "ActivateScreensaver",        false,  "Activate Screensaver" },
-  { "RestartApp",                 false,  "Restart XBMC" },
-  { "Minimize",                   false,  "Minimize XBMC" },
+  { "RestartApp",                 false,  "Restart Kodi" },
+  { "Minimize",                   false,  "Minimize Kodi" },
   { "Reset",                      false,  "Reset the system (same as reboot)" },
   { "Mastermode",                 false,  "Control master mode" },
   { "SetGUILanguage",             true,   "Set GUI Language" },
@@ -144,10 +144,11 @@ const BUILT_IN commands[] = {
   { "NotifyAll",                  true,   "Notify all connected clients" },
   { "Extract",                    true,   "Extracts the specified archive" },
   { "PlayMedia",                  true,   "Play the specified media file (or playlist)" },
+  { "ShowPicture",                true,   "Display a picture by file path" },
   { "SlideShow",                  true,   "Run a slideshow from the specified directory" },
   { "RecursiveSlideShow",         true,   "Run a slideshow from the specified directory, including all subdirs" },
-  { "ReloadSkin",                 false,  "Reload XBMC's skin" },
-  { "UnloadSkin",                 false,  "Unload XBMC's skin" },
+  { "ReloadSkin",                 false,  "Reload Kodi's skin" },
+  { "UnloadSkin",                 false,  "Unload Kodi's skin" },
   { "RefreshRSS",                 false,  "Reload RSS feeds from RSSFeeds.xml"},
   { "PlayerControl",              true,   "Control the music or video player" },
   { "Playlist.PlayOffset",        true,   "Start playing from a particular offset in the playlist" },
@@ -176,8 +177,8 @@ const BUILT_IN commands[] = {
   { "Dialog.Close",               true,   "Close a dialog" },
   { "System.LogOff",              false,  "Log off current user" },
   { "System.Exec",                true,   "Execute shell commands" },
-  { "System.ExecWait",            true,   "Execute shell commands and freezes XBMC until shell is closed" },
-  { "Resolution",                 true,   "Change XBMC's Resolution" },
+  { "System.ExecWait",            true,   "Execute shell commands and freezes Kodi until shell is closed" },
+  { "Resolution",                 true,   "Change Kodi's Resolution" },
   { "SetFocus",                   true,   "Change current focus to a different control id" },
   { "UpdateLibrary",              true,   "Update the selected library (music or video)" },
   { "CleanLibrary",               true,   "Clean the video/music library" },
@@ -216,8 +217,8 @@ const BUILT_IN commands[] = {
   { "Weather.LocationPrevious",   false,  "Switch to previous weather location"},
   { "Weather.LocationSet",        true,   "Switch to given weather location (parameter can be 1-3)"},
 #if defined(HAS_LIRC) || defined(HAS_IRSERVERSUITE)
-  { "LIRC.Stop",                  false,  "Removes XBMC as LIRC client" },
-  { "LIRC.Start",                 false,  "Adds XBMC as LIRC client" },
+  { "LIRC.Stop",                  false,  "Removes Kodi as LIRC client" },
+  { "LIRC.Start",                 false,  "Adds Kodi as LIRC client" },
   { "LIRC.Send",                  true,   "Sends a command to LIRC" },
 #endif
   { "VideoLibrary.Search",        false,  "Brings up a search dialog which will search the library" },
@@ -257,7 +258,7 @@ void CBuiltins::GetHelp(std::string &help)
 
 int CBuiltins::Execute(const std::string& execString)
 {
-  // Get the text after the "XBMC."
+  // Deprecated. Get the text after the "XBMC."
   std::string execute;
   vector<string> params;
   CUtil::SplitExecFunction(execString, execute, params);
@@ -391,7 +392,17 @@ int CBuiltins::Execute(const std::string& execString)
     int iWindow = CButtonTranslator::TranslateWindow(strWindow);
     if (iWindow != WINDOW_INVALID)
     {
-      if (iWindow != g_windowManager.GetActiveWindow())
+      // compate the given directory param with the current active directory
+      bool bIsSameStartFolder = true;
+      if (!params.empty())
+      {
+        CGUIWindow *activeWindow = g_windowManager.GetWindow(g_windowManager.GetActiveWindow());
+        if (activeWindow && activeWindow->IsMediaWindow())
+          bIsSameStartFolder = ((CGUIMediaWindow*) activeWindow)->IsSameStartFolder(params[0]);
+      }
+
+      // activate window only if window and path differ from the current active window
+      if (iWindow != g_windowManager.GetActiveWindow() || !bIsSameStartFolder)
       {
         // disable the screensaver
         g_application.WakeUpScreenSaverAndDPMS();
@@ -454,10 +465,29 @@ int CBuiltins::Execute(const std::string& execString)
     else
 #endif
     {
-      AddonPtr script;
-      std::string scriptpath(params[0]);
-      if (CAddonMgr::Get().GetAddon(params[0], script))
-        scriptpath = script->LibPath();
+      AddonPtr addon;
+      std::string scriptpath;
+      // Test to see if the param is an addon ID
+      if (CAddonMgr::Get().GetAddon(params[0], addon))
+      {
+        //Get the correct extension point to run
+        if (CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT) ||
+            CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_WEATHER) ||
+            CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LYRICS) ||
+            CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LIBRARY))
+        {
+          scriptpath = addon->LibPath();
+        }
+        else
+        {
+          //Run a random extension point (old behaviour).
+          CAddonMgr::Get().GetAddon(params[0], addon);
+          scriptpath = addon->LibPath();
+          CLog::Log(LOGWARNING, "RunScript called for a non-script addon '%s'. This behaviour is deprecated.", params[0].c_str());
+        }
+      }
+      else
+        scriptpath = params[0];
 
       // split the path up to find the filename
       vector<string> argv = params;
@@ -465,7 +495,7 @@ int CBuiltins::Execute(const std::string& execString)
       if (!filename.empty())
         argv[0] = filename;
 
-      CScriptInvocationManager::Get().Execute(scriptpath, script, argv);
+      CScriptInvocationManager::Get().Execute(scriptpath, addon, argv);
     }
   }
 #if defined(TARGET_DARWIN_OSX)
@@ -476,14 +506,17 @@ int CBuiltins::Execute(const std::string& execString)
 #endif
   else if (execute == "stopscript")
   {
-    std::string scriptpath(params[0]);
-
-    // Test to see if the param is an addon ID
-    AddonPtr script;
-    if (CAddonMgr::Get().GetAddon(params[0], script))
-      scriptpath = script->LibPath();
-
-    CScriptInvocationManager::Get().Stop(scriptpath);
+    // FIXME: This does not work for addons with multiple extension points!
+    // Are there any use for this? TODO: Fix hack in CScreenSaver::Destroy() and deprecate.
+    if (!params.empty())
+    {
+      std::string scriptpath(params[0]);
+      // Test to see if the param is an addon ID
+      AddonPtr script;
+      if (CAddonMgr::Get().GetAddon(params[0], script))
+        scriptpath = script->LibPath();
+      CScriptInvocationManager::Get().Stop(scriptpath);
+    }
   }
   else if (execute == "system.exec")
   {
@@ -532,7 +565,7 @@ int CBuiltins::Execute(const std::string& execString)
       g_RarManager.ExtractArchive(params[0],strDestDirect);
 #endif
     else
-      CLog::Log(LOGERROR, "XBMC.Extract, No archive given");
+      CLog::Log(LOGERROR, "Extract, No archive given");
   }
   else if (execute == "runplugin")
   {
@@ -547,7 +580,7 @@ int CBuiltins::Execute(const std::string& execString)
     }
     else
     {
-      CLog::Log(LOGERROR, "XBMC.RunPlugin called with no arguments.");
+      CLog::Log(LOGERROR, "RunPlugin called with no arguments.");
     }
   }
   else if (execute == "runaddon")
@@ -555,8 +588,7 @@ int CBuiltins::Execute(const std::string& execString)
     if (params.size())
     {
       AddonPtr addon;
-      std::string cmd;
-      if (CAddonMgr::Get().GetAddon(params[0],addon,ADDON_PLUGIN))
+      if (CAddonMgr::Get().GetAddon(params[0], addon, ADDON_PLUGIN))
       {
         PluginPtr plugin = boost::dynamic_pointer_cast<CPluginSource>(addon);
         std::string addonid = params[0];
@@ -577,6 +609,7 @@ int CBuiltins::Execute(const std::string& execString)
           urlParameters = "/";
         }
 
+        std::string cmd;
         if (plugin->Provides(CPluginSource::VIDEO))
           cmd = StringUtils::Format("ActivateWindow(Videos,plugin://%s%s,return)", addonid.c_str(), urlParameters.c_str());
         else if (plugin->Provides(CPluginSource::AUDIO))
@@ -589,19 +622,23 @@ int CBuiltins::Execute(const std::string& execString)
           // Pass the script name (params[0]) and all the parameters
           // (params[1] ... params[x]) separated by a comma to RunPlugin
           cmd = StringUtils::Format("RunPlugin(%s)", StringUtils::Join(params, ",").c_str());
+        Execute(cmd);
       }
       else if (CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT) ||
                CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_WEATHER) ||
-               CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LYRICS))
+               CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LYRICS) ||
+               CAddonMgr::Get().GetAddon(params[0], addon, ADDON_SCRIPT_LIBRARY))
+      {
         // Pass the script name (params[0]) and all the parameters
         // (params[1] ... params[x]) separated by a comma to RunScript
-        cmd = StringUtils::Format("RunScript(%s)", StringUtils::Join(params, ",").c_str());
-
-      return Execute(cmd);
+        Execute(StringUtils::Format("RunScript(%s)", StringUtils::Join(params, ",").c_str()));
+      }
+      else
+        CLog::Log(LOGERROR, "RunAddon: unknown add-on id '%s', or unexpected add-on type (not a script or plugin).", params[0].c_str());
     }
     else
     {
-      CLog::Log(LOGERROR, "XBMC.RunAddon called with no arguments.");
+      CLog::Log(LOGERROR, "RunAddon called with no arguments.");
     }
   }
   else if (execute == "notifyall")
@@ -615,13 +652,13 @@ int CBuiltins::Execute(const std::string& execString)
       ANNOUNCEMENT::CAnnouncementManager::Get().Announce(ANNOUNCEMENT::Other, params[0].c_str(), params[1].c_str(), data);
     }
     else
-      CLog::Log(LOGERROR, "XBMC.NotifyAll needs two parameters");
+      CLog::Log(LOGERROR, "NotifyAll needs two parameters");
   }
   else if (execute == "playmedia")
   {
     if (!params.size())
     {
-      CLog::Log(LOGERROR, "XBMC.PlayMedia called with empty parameter");
+      CLog::Log(LOGERROR, "PlayMedia called with empty parameter");
       return -3;
     }
 
@@ -720,7 +757,7 @@ int CBuiltins::Execute(const std::string& execString)
       // play media
       if (!g_application.PlayMedia(item, playlist))
       {
-        CLog::Log(LOGERROR, "XBMC.PlayMedia could not play media: %s", params[0].c_str());
+        CLog::Log(LOGERROR, "PlayMedia could not play media: %s", params[0].c_str());
         return false;
       }
     }
@@ -729,7 +766,7 @@ int CBuiltins::Execute(const std::string& execString)
   {
     if (!params.size())
     {
-      CLog::Log(LOGERROR, "XBMC.ShowPicture called with empty parameter");
+      CLog::Log(LOGERROR, "ShowPicture called with empty parameter");
       return -2;
     }
     CGUIMessage msg(GUI_MSG_SHOW_PICTURE, 0, 0);
@@ -741,7 +778,7 @@ int CBuiltins::Execute(const std::string& execString)
   {
     if (!params.size())
     {
-      CLog::Log(LOGERROR, "XBMC.SlideShow called with empty parameter");
+      CLog::Log(LOGERROR, "SlideShow called with empty parameter");
       return -2;
     }
     std::string beginSlidePath;
@@ -797,7 +834,7 @@ int CBuiltins::Execute(const std::string& execString)
     g_application.WakeUpScreenSaverAndDPMS();
     if (!params.size())
     {
-      CLog::Log(LOGERROR, "XBMC.PlayerControl called with empty parameter");
+      CLog::Log(LOGERROR, "PlayerControl called with empty parameter");
       return -3;
     }
     if (paramlow ==  "play")
@@ -1400,29 +1437,35 @@ int CBuiltins::Execute(const std::string& execString)
   }
   else if (execute == "updatelibrary" && !params.empty())
   {
+    bool userInitiated = false;
+    if (params.size() > 2)
+      userInitiated = StringUtils::EqualsNoCase(params[2], "true");
     if (StringUtils::EqualsNoCase(params[0], "music"))
     {
       if (g_application.IsMusicScanning())
         g_application.StopMusicScan();
       else
-        g_application.StartMusicScan(params.size() > 1 ? params[1] : "");
+        g_application.StartMusicScan(params.size() > 1 ? params[1] : "", userInitiated);
     }
     if (StringUtils::EqualsNoCase(params[0], "video"))
     {
       if (g_application.IsVideoScanning())
         g_application.StopVideoScan();
       else
-        g_application.StartVideoScan(params.size() > 1 ? params[1] : "");
+        g_application.StartVideoScan(params.size() > 1 ? params[1] : "", userInitiated);
     }
   }
   else if (execute == "cleanlibrary")
   {
+    bool userInitiated = false;
+    if (params.size() > 1)
+      userInitiated = StringUtils::EqualsNoCase(params[1], "true");
     if (!params.size() || StringUtils::EqualsNoCase(params[0], "video"))
     {
       if (!g_application.IsVideoScanning())
-         g_application.StartVideoCleanup();
+         g_application.StartVideoCleanup(userInitiated);
       else
-        CLog::Log(LOGERROR, "XBMC.CleanLibrary is not possible while scanning or cleaning");
+        CLog::Log(LOGERROR, "CleanLibrary is not possible while scanning or cleaning");
     }
     else if (StringUtils::EqualsNoCase(params[0], "music"))
     {
@@ -1431,11 +1474,11 @@ int CBuiltins::Execute(const std::string& execString)
         CMusicDatabase musicdatabase;
 
         musicdatabase.Open();
-        musicdatabase.Cleanup();
+        musicdatabase.Cleanup(userInitiated);
         musicdatabase.Close();
       }
       else
-        CLog::Log(LOGERROR, "XBMC.CleanLibrary is not possible while scanning for media info");
+        CLog::Log(LOGERROR, "CleanLibrary is not possible while scanning for media info");
     }
   }
   else if (execute == "exportlibrary" && !params.empty())

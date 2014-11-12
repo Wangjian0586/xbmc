@@ -45,6 +45,7 @@
 
 #include "utils/URIUtils.h"
 #include "GUIInfoManager.h"
+#include "cores/DataCacheCore.h"
 #include "guilib/GUIWindowManager.h"
 #include "guilib/StereoscopicsManager.h"
 #include "Application.h"
@@ -252,11 +253,8 @@ public:
                    , rh.type_index == CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleStream);
 
     // prefer external subs
-    PREDICATE_RETURN(STREAM_SOURCE_MASK(lh.source) == STREAM_SOURCE_DEMUX_SUB
-                   , STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_DEMUX_SUB);
-
-    PREDICATE_RETURN(STREAM_SOURCE_MASK(lh.source) == STREAM_SOURCE_TEXT
-                   , STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_TEXT);
+    PREDICATE_RETURN(STREAM_SOURCE_MASK(lh.source) == STREAM_SOURCE_DEMUX_SUB || STREAM_SOURCE_MASK(lh.source) == STREAM_SOURCE_TEXT
+                   , STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_DEMUX_SUB || STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_TEXT);
 
     if(!subson || original)
     {
@@ -394,7 +392,7 @@ void CSelectionStreams::Update(SelectionStream& s)
   }
 }
 
-void CSelectionStreams::Update(CDVDInputStream* input, CDVDDemux* demuxer)
+void CSelectionStreams::Update(CDVDInputStream* input, CDVDDemux* demuxer, std::string filename2)
 {
   if(input && input->IsStreamType(DVDSTREAM_TYPE_DVD))
   {
@@ -466,6 +464,7 @@ void CSelectionStreams::Update(CDVDInputStream* input, CDVDDemux* demuxer)
       s.language = g_LangCodeExpander.ConvertToISO6392T(stream->language);
       s.flags    = stream->flags;
       s.filename = demuxer->GetFileName();
+      s.filename2 = filename2;
       stream->GetStreamName(s.name);
       std::string codec;
       demuxer->GetStreamCodecName(stream->iId, codec);
@@ -483,9 +482,13 @@ void CSelectionStreams::Update(CDVDInputStream* input, CDVDDemux* demuxer)
         }
         s.channels = ((CDemuxStreamAudio*)stream)->iChannels;
       }
+      if (!s.filename2.empty())
+        s.name += " " + g_localizeStrings.Get(21602);
       Update(s);
     }
   }
+  g_dataCacheCore.SignalAudioInfoChange();
+  g_dataCacheCore.SignalVideoInfoChange();
 }
 
 void CDVDPlayer::CreatePlayers()
@@ -2112,7 +2115,7 @@ void CDVDPlayer::CheckAutoSceneSkip()
     /*
      * Seeking is NOT flushed so any content up to the demux point is retained when playing forwards.
      */
-    m_messenger.Put(new CDVDMsgPlayerSeek(seek, true, false, true, false, true));
+    m_messenger.Put(new CDVDMsgPlayerSeek(seek, true, m_omxplayer_mode, true, false, true));
     /*
      * Seek doesn't always work reliably. Last physical seek time is recorded to prevent looping
      * if there was an error with seeking and it landed somewhere unexpected, perhaps back in the
@@ -2130,7 +2133,7 @@ void CDVDPlayer::CheckAutoSceneSkip()
     /*
      * Seeking is NOT flushed so any content up to the demux point is retained when playing forwards.
      */
-    m_messenger.Put(new CDVDMsgPlayerSeek(cut.end + 1, true, false, true, false, true));
+    m_messenger.Put(new CDVDMsgPlayerSeek(cut.end + 1, true, m_omxplayer_mode, true, false, true));
     /*
      * Each commercial break is only skipped once so poorly detected commercial breaks can be
      * manually re-entered. Start and end are recorded to prevent looping and to allow seeking back
@@ -3230,6 +3233,9 @@ bool CDVDPlayer::OpenStream(CCurrentStream& current, int iStream, int source, bo
     }
   }
 
+  g_dataCacheCore.SignalAudioInfoChange();
+  g_dataCacheCore.SignalVideoInfoChange();
+
   return res;
 }
 
@@ -3411,7 +3417,7 @@ void CDVDPlayer::UpdateClockMaster()
 void CDVDPlayer::FlushBuffers(bool queued, double pts, bool accurate)
 {
   double startpts;
-  if(accurate)
+  if(accurate && !m_omxplayer_mode)
     startpts = pts;
   else
     startpts = DVD_NOPTS_VALUE;
@@ -4143,10 +4149,9 @@ int CDVDPlayer::AddSubtitleFile(const std::string& filename, const std::string& 
     CDVDDemuxVobsub v;
     if(!v.Open(filename, vobsubfile))
       return -1;
-    m_SelectionStreams.Update(NULL, &v);
+    m_SelectionStreams.Update(NULL, &v, vobsubfile);
     int index = m_SelectionStreams.IndexOf(STREAM_SUBTITLE, m_SelectionStreams.Source(STREAM_SOURCE_DEMUX_SUB, filename), 0);
     m_SelectionStreams.Get(STREAM_SUBTITLE, index).flags = flags;
-    m_SelectionStreams.Get(STREAM_SUBTITLE, index).filename2 = vobsubfile;
     ExternalStreamInfo info;
     CUtil::GetExternalStreamDetailsFromFilename(m_filename, vobsubfile, info);
     m_SelectionStreams.Get(STREAM_SUBTITLE, index).name = info.name;
@@ -4410,7 +4415,7 @@ std::string CDVDPlayer::GetPlayingTitle()
   return "";
 }
 
-bool CDVDPlayer::SwitchChannel(const CPVRChannel &channel)
+bool CDVDPlayer::SwitchChannel(CPVRChannel &channel)
 {
   if (!g_PVRManager.CheckParentalLock(channel))
     return false;
@@ -4433,33 +4438,4 @@ bool CDVDPlayer::CachePVRStream(void) const
   return m_pInputStream->IsStreamType(DVDSTREAM_TYPE_PVRMANAGER) &&
       !g_PVRManager.IsPlayingRecording() &&
       g_advancedSettings.m_bPVRCacheInDvdPlayer;
-}
-
-void CDVDPlayer::OMXGetRenderFeatures(std::vector<int> &renderFeatures)
-{
-  if (m_omxplayer_mode)
-  {
-    renderFeatures.push_back(RENDERFEATURE_STRETCH);
-    renderFeatures.push_back(RENDERFEATURE_CROP);
-    renderFeatures.push_back(RENDERFEATURE_PIXEL_RATIO);
-    renderFeatures.push_back(RENDERFEATURE_ZOOM);
-  }
-}
-
-void CDVDPlayer::OMXGetDeinterlaceMethods(std::vector<int> &deinterlaceMethods)
-{
-  if (m_omxplayer_mode)
-  {
-    deinterlaceMethods.push_back(VS_INTERLACEMETHOD_DEINTERLACE);
-  }
-}
-
-void CDVDPlayer::OMXGetDeinterlaceModes(std::vector<int> &deinterlaceModes)
-{
-  if (m_omxplayer_mode)
-  {
-    deinterlaceModes.push_back(VS_DEINTERLACEMODE_AUTO);
-    deinterlaceModes.push_back(VS_DEINTERLACEMODE_OFF);
-    deinterlaceModes.push_back(VS_DEINTERLACEMODE_FORCE);
-  }
 }

@@ -116,7 +116,6 @@ struct CVaapiConfig
   CDecoder *vaapi;
   int upscale;
   CVideoSurfaces *videoSurfaces;
-  int numRenderBuffers;
   uint32_t maxReferences;
   bool useInteropYuv;
   CVAAPIContext *context;
@@ -145,6 +144,7 @@ struct CVaapiProcessedPicture
   DVDVideoPicture DVDPic;
   VASurfaceID videoSurface;
   AVFrame *frame;
+  int id;
   enum
   {
     VPP_SRC,
@@ -152,6 +152,19 @@ struct CVaapiProcessedPicture
     SKIP_SRC
   }source;
   bool crop;
+};
+
+struct VaapiGlx
+{
+  Display *x11dsp;
+  VADisplay vadsp;
+  Pixmap pixmap;
+  GLXPixmap glPixmap;
+  GLenum textureTarget;
+  PFNGLXBINDTEXIMAGEEXTPROC glXBindTexImageEXT;
+  PFNGLXRELEASETEXIMAGEEXTPROC glXReleaseTexImageEXT;
+  CVaapiProcessedPicture procPic;
+  bool bound;
 };
 
 /**
@@ -166,8 +179,10 @@ class CVaapiRenderPicture
   friend class COutput;
 public:
   CVaapiRenderPicture(CCriticalSection &section)
-    : texture(None), avFrame(NULL), refCount(0), renderPicSection(section) { fence = None; }
+    : texWidth(0), texHeight(0), texture(None), valid(false), vaapi(NULL), avFrame(NULL),
+      usefence(false), refCount(0), renderPicSection(section) { fence = None; }
   void Sync();
+  bool CopyGlx();
   DVDVideoPicture DVDPic;
   int texWidth, texHeight;
   CRect crop;
@@ -182,8 +197,7 @@ private:
   bool usefence;
   GLsync fence;
   int refCount;
-  Pixmap pixmap;
-  GLXPixmap glPixmap;
+  VaapiGlx glx;
   CCriticalSection &renderPicSection;
 };
 
@@ -204,8 +218,10 @@ struct VaapiBufferPool
   std::deque<int> freeRenderPics;
   std::deque<int> syncRenderPics;
   std::deque<CVaapiProcessedPicture> processedPics;
+  std::deque<CVaapiProcessedPicture> processedPicsAway;
   std::deque<CVaapiDecodedPicture> decodedPics;
   CCriticalSection renderPicSec;
+  int procPicId;
 };
 
 class COutputControlProtocol : public Protocol
@@ -235,6 +251,7 @@ public:
   {
     NEWFRAME = 0,
     RETURNPIC,
+    RETURNPROCPIC,
   };
   enum InSignal
   {
@@ -276,6 +293,7 @@ protected:
   CVaapiRenderPicture* ProcessPicture(CVaapiProcessedPicture &pic);
   void QueueReturnPicture(CVaapiRenderPicture *pic);
   void ProcessReturnPicture(CVaapiRenderPicture *pic);
+  void ProcessReturnProcPicture(int id);
   bool ProcessSyncPicture();
   void ReleaseProcessedPicture(CVaapiProcessedPicture &pic);
   void DropVppProcessedPictures();
@@ -331,6 +349,8 @@ public:
   void Reset();
   int Size();
   bool HasFree();
+  bool HasRefs();
+  int NumFree();
 protected:
   std::map<VASurfaceID, int> m_state;
   std::list<VASurfaceID> m_freeSurfaces;
@@ -392,7 +412,7 @@ public:
   virtual void Close();
   virtual long Release();
   virtual bool CanSkipDeint();
-  virtual unsigned GetAllowedReferences() { return 5; }
+  virtual unsigned GetAllowedReferences() { return 4; }
 
   virtual int  Check(AVCodecContext* avctx);
   virtual const std::string Name() { return "vaapi"; }
@@ -409,6 +429,7 @@ protected:
   bool CheckStatus(VAStatus vdp_st, int line);
   void FiniVAAPIOutput();
   void ReturnRenderPicture(CVaapiRenderPicture *renderPic);
+  void ReturnProcPicture(int id);
   long ReleasePicReference();
   bool CheckSuccess(VAStatus status);
 
@@ -427,6 +448,7 @@ protected:
   CVaapiConfig  m_vaapiConfig;
   CVideoSurfaces m_videoSurfaces;
   vaapi_context m_hwContext;
+  AVCodecContext* m_avctx;
 
   COutput m_vaapiOutput;
   CVaapiBufferStats m_bufferStats;
@@ -456,6 +478,7 @@ public:
   virtual void Flush() = 0;
   virtual bool Compatible(EINTERLACEMETHOD method) = 0;
   virtual bool DoesSync() = 0;
+  virtual bool WantsPic() {return true;}
 protected:
   CVaapiConfig m_config;
   int m_step;
@@ -495,6 +518,7 @@ public:
   void Flush();
   bool Compatible(EINTERLACEMETHOD method);
   bool DoesSync();
+  bool WantsPic();
 protected:
   bool CheckSuccess(VAStatus status);
   void Dispose();

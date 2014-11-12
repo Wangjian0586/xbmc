@@ -47,7 +47,7 @@ namespace ADDON
 {
 
 CSkinInfo::CSkinInfo(const AddonProps &props, const RESOLUTION_INFO &resolution)
-  : CAddon(props), m_defaultRes(resolution), m_version("")
+  : CAddon(props), m_defaultRes(resolution), m_version(""), m_effectsSlowDown(1.f), m_debugging(false)
 {
 }
 
@@ -65,7 +65,7 @@ CSkinInfo::CSkinInfo(const cp_extension_t *ext)
       std::string folder = CAddonMgr::Get().GetExtValue(*i, "@folder");
       float aspect = 0;
       std::string strAspect = CAddonMgr::Get().GetExtValue(*i, "@aspect");
-      vector<string> fracs = StringUtils::Split(strAspect, ":");
+      vector<string> fracs = StringUtils::Split(strAspect, ':');
       if (fracs.size() == 2)
         aspect = (float)(atof(fracs[0].c_str())/atof(fracs[1].c_str()));
       if (width > 0 && height > 0)
@@ -89,11 +89,8 @@ CSkinInfo::CSkinInfo(const cp_extension_t *ext)
   std::string str = CAddonMgr::Get().GetExtValue(ext->configuration, "@effectslowdown");
   if (!str.empty())
     m_effectsSlowDown = (float)atof(str.c_str());
-  else
-    m_effectsSlowDown = 1.f;
 
-  str = CAddonMgr::Get().GetExtValue(ext->configuration, "@debugging");
-  m_debugging = !strcmp(str.c_str(), "true");
+  m_debugging = CAddonMgr::Get().GetExtValue(ext->configuration, "@debugging") == "true";
 
   LoadStartupWindows(ext);
 

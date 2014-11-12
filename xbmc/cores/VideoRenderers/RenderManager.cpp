@@ -38,9 +38,12 @@
 #include "settings/MediaSettings.h"
 #include "settings/Settings.h"
 #include "guilib/GUIFontManager.h"
+#include "cores/DataCacheCore.h"
 
 #if defined(HAS_GL)
   #include "LinuxRendererGL.h"
+#elif defined(HAS_MMAL)
+  #include "MMALRenderer.h"
 #elif HAS_GLES == 2
   #include "LinuxRendererGLES.h"
 #elif defined(HAS_DX)
@@ -261,20 +264,16 @@ bool CXBMCRenderManager::Configure(unsigned int width, unsigned int height, unsi
     lock2.Enter();
     m_format = format;
 
-    int processor = m_pRenderer->GetProcessorSize();
-    if(processor > buffers)                          /* DXVA-HD returns processor size 6 */
-      m_QueueSize = 3;                               /* we need queue size of 3 to get future frames in the processor */
-    else if(processor)
-      m_QueueSize = buffers - processor + 1;         /* respect maximum refs */
-    else
-      m_QueueSize = m_pRenderer->GetMaxBufferSize(); /* no refs to data */
-
+    int renderbuffers = m_pRenderer->GetOptimalBufferSize();
+    m_QueueSize = renderbuffers;
+    if (buffers > 0)
+      m_QueueSize = std::min(buffers, renderbuffers);
     m_QueueSize = std::min(m_QueueSize, (int)m_pRenderer->GetMaxBufferSize());
     m_QueueSize = std::min(m_QueueSize, NUM_BUFFERS);
     if(m_QueueSize < 2)
     {
       m_QueueSize = 2;
-      CLog::Log(LOGWARNING, "CXBMCRenderManager::Configure - queue size too small (%d, %d, %d)", m_QueueSize, processor, buffers);
+      CLog::Log(LOGWARNING, "CXBMCRenderManager::Configure - queue size too small (%d, %d, %d)", m_QueueSize, renderbuffers, buffers);
     }
 
     m_pRenderer->SetBufferSize(m_QueueSize);
@@ -290,6 +289,8 @@ bool CXBMCRenderManager::Configure(unsigned int width, unsigned int height, unsi
     m_bIsStarted = true;
     m_bReconfigured = true;
     m_presentstep = PRESENT_IDLE;
+    m_presentpts = DVD_NOPTS_VALUE;
+    m_sleeptime = 1.0;
     m_presentevent.notifyAll();
 
     m_firstFlipPage = false;  // tempfix
@@ -365,11 +366,16 @@ void CXBMCRenderManager::FrameMove()
     /* release all previous */
     for(std::deque<int>::iterator it = m_discard.begin(); it != m_discard.end(); )
     {
-      // TODO check for fence
-      m_pRenderer->ReleaseBuffer(*it);
-      m_overlays.Release(*it);
-      m_free.push_back(*it);
-      it = m_discard.erase(it);
+      // renderer may want to keep the frame for postprocessing
+      if (!m_pRenderer->NeedBufferForRef(*it))
+      {
+        m_pRenderer->ReleaseBuffer(*it);
+        m_overlays.Release(*it);
+        m_free.push_back(*it);
+        it = m_discard.erase(it);
+      }
+      else
+        ++it;
     }
   }
 }
@@ -422,6 +428,8 @@ unsigned int CXBMCRenderManager::PreInit()
   {
 #if defined(HAS_GL)
     m_pRenderer = new CLinuxRendererGL();
+#elif defined(HAS_MMAL)
+    m_pRenderer = new CMMALRenderer();
 #elif HAS_GLES == 2
     m_pRenderer = new CLinuxRendererGLES();
 #elif defined(HAS_DX)
@@ -482,6 +490,14 @@ bool CXBMCRenderManager::Flush()
     else
       return true;
   }
+
+  m_queued.clear();
+  m_discard.clear();
+  m_free.clear();
+  m_presentsource = 0;
+  for (int i = 1; i < m_QueueSize; i++)
+    m_free.push_back(i);
+
   return true;
 }
 
@@ -633,9 +649,10 @@ void CXBMCRenderManager::SetViewMode(int iViewMode)
   CSharedLock lock(m_sharedSection);
   if (m_pRenderer)
     m_pRenderer->SetViewMode(iViewMode);
+  g_dataCacheCore.SignalVideoInfoChange();
 }
 
-void CXBMCRenderManager::FlipPage(volatile bool& bStop, double timestamp /* = 0LL*/, int source /*= -1*/, EFIELDSYNC sync /*= FS_NONE*/)
+void CXBMCRenderManager::FlipPage(volatile bool& bStop, double timestamp /* = 0LL*/, double pts /* = 0 */, int source /*= -1*/, EFIELDSYNC sync /*= FS_NONE*/)
 {
   { CSharedLock lock(m_sharedSection);
 
@@ -703,6 +720,7 @@ void CXBMCRenderManager::FlipPage(volatile bool& bStop, double timestamp /* = 0L
     m.timestamp     = timestamp;
     m.presentfield  = sync;
     m.presentmethod = presentmethod;
+    m.pts           = pts;
     requeue(m_queued, m_free);
 
     /* signal to any waiters to check state */
@@ -852,14 +870,20 @@ void CXBMCRenderManager::UpdateResolution()
       g_graphicsContext.SetVideoResolution(res);
     }
     m_bReconfigured = false;
+    g_dataCacheCore.SignalVideoInfoChange();
   }
 }
 
 
-unsigned int CXBMCRenderManager::GetProcessorSize()
+unsigned int CXBMCRenderManager::GetOptimalBufferSize()
 {
   CSharedLock lock(m_sharedSection);
-  return std::max(4, NUM_BUFFERS);
+  if (!m_pRenderer)
+  {
+    CLog::Log(LOGERROR, "%s - renderer is NULL", __FUNCTION__);
+    return 0;
+  }
+  return m_pRenderer->GetMaxBufferSize();
 }
 
 // Supported pixel formats, can be called before configure
@@ -944,6 +968,10 @@ int CXBMCRenderManager::AddVideoPicture(DVDVideoPicture& pic)
 #ifdef HAS_IMXVPU
   else if(pic.format == RENDER_FMT_IMXMAP)
     m_pRenderer->AddProcessor(pic.IMXBuffer, index);
+#endif
+#ifdef HAS_MMAL
+  else if(pic.format == RENDER_FMT_MMAL)
+    m_pRenderer->AddProcessor(pic.MMALBuffer, index);
 #endif
 
   m_pRenderer->ReleaseImage(index, false);
@@ -1086,6 +1114,8 @@ void CXBMCRenderManager::PrepareNextRender()
     m_discard.push_back(m_presentsource);
     m_presentsource = idx;
     m_queued.pop_front();
+    m_sleeptime = m_Queue[idx].timestamp - clocktime;
+    m_presentpts = m_Queue[idx].pts;
     m_presentevent.notifyAll();
   }
 }
@@ -1101,4 +1131,13 @@ void CXBMCRenderManager::DiscardBuffer()
   if(m_presentstep == PRESENT_READY)
     m_presentstep   = PRESENT_IDLE;
   m_presentevent.notifyAll();
+}
+
+bool CXBMCRenderManager::GetStats(double &sleeptime, double &pts, int &bufferLevel)
+{
+  CSingleLock lock(m_presentlock);
+  sleeptime = m_sleeptime;
+  pts = m_presentpts;
+  bufferLevel = m_queued.size() + m_discard.size();
+  return true;
 }
